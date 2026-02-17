@@ -1,48 +1,26 @@
 import os
-import json
-import base64
-import requests
+from github import Github
 
-API = "https://api.github.com"
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITHUB_REPO = os.getenv("GITHUB_REPO")
+GITHUB_BRANCH = os.getenv("GITHUB_BRANCH","main")
+GITHUB_JSON_PATH = os.getenv("GITHUB_JSON_PATH","planning_complet.json")
 
-
-def _headers():
-    return {
-        "Authorization": f"token {os.getenv('GITHUB_TOKEN')}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-
+g = Github(GITHUB_TOKEN)
+repo = g.get_repo(GITHUB_REPO)
 
 def check_github_connection():
-    repo = os.getenv("GITHUB_REPO")
-    r = requests.get(f"{API}/repos/{repo}", headers=_headers())
-    if r.status_code == 200:
-        return True, "Connexion GitHub OK"
-    return False, "Connexion GitHub échouée"
-
+    try:
+        repo.get_branch(GITHUB_BRANCH)
+        return True, "Connexion repo OK"
+    except Exception as e:
+        return False, str(e)
 
 def commit_json(data: dict):
-    repo = os.getenv("GITHUB_REPO")
-    branch = os.getenv("GITHUB_BRANCH", "main")
-    path = os.getenv("GITHUB_JSON_PATH", "planning_complet.json")
-
-    url = f"{API}/repos/{repo}/contents/{path}"
-
-    r = requests.get(url, headers=_headers())
-    sha = r.json().get("sha") if r.status_code == 200 else None
-
-    content = base64.b64encode(
-        json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
-    ).decode("utf-8")
-
-    payload = {
-        "message": f"update planning_complet.json – {data.get('annee')} S{data.get('semaine')}",
-        "content": content,
-        "branch": branch
-    }
-
-    if sha:
-        payload["sha"] = sha
-
-    res = requests.put(url, headers=_headers(), json=payload)
-    res.raise_for_status()
+    import json
+    content = json.dumps(data, ensure_ascii=False, indent=4)
+    try:
+        file = repo.get_contents(GITHUB_JSON_PATH, ref=GITHUB_BRANCH)
+        repo.update_file(GITHUB_JSON_PATH, "Update planning JSON", content, file.sha, branch=GITHUB_BRANCH)
+    except:
+        repo.create_file(GITHUB_JSON_PATH, "Create planning JSON", content, branch=GITHUB_BRANCH)
