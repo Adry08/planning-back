@@ -23,6 +23,14 @@ def check_admin(x_admin_token: str = Header(None)):
 
 
 # ----------------------------------------------------
+# ROUTE RACINE (test serveur)
+# ----------------------------------------------------
+@app.get("/")
+def root():
+    return {"message": "Backend OK. Utilisez /health/github, /upload ou /push"}
+
+
+# ----------------------------------------------------
 # ENDPOINTS
 # ----------------------------------------------------
 
