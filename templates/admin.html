@@ -1,101 +1,239 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Planning</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Planning – Admin</title>
 
 <style>
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --muted: #8b949e;
+  --green: #238636;
+  --red: #da3633;
+  --blue: #1f6feb;
+}
+
+* { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+
 body {
   margin: 0;
-  background: #020617;
-  color: #e5e7eb;
-  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding: 20px;
 }
+
+.container {
+  max-width: 900px;
+  margin: auto;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+}
+
 .card {
-  max-width: 720px;
-  margin: 40px auto;
-  background: #020617;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 0 40px rgba(0,0,0,.5);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
 }
-input, button {
-  width: 100%;
-  margin-top: 12px;
-  padding: 14px;
-  border-radius: 12px;
-  border: none;
+
+.card h2 {
+  font-size: 1.1rem;
+  margin: 0 0 12px 0;
 }
+
 button {
-  background: #38bdf8;
-  font-weight: 600;
+  background: var(--blue);
+  border: none;
+  color: white;
+  padding: 10px 14px;
+  border-radius: 6px;
   cursor: pointer;
 }
-button.secondary {
-  background: #1e293b;
-  color: #e5e7eb;
-}
+
 button:disabled {
   opacity: .5;
+  cursor: not-allowed;
 }
+
+.alert {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: .9rem;
+}
+
+.alert.success { background: rgba(35,134,54,.2); color: #3fb950; }
+.alert.error { background: rgba(218,54,51,.2); color: #f85149; }
+.alert.info { background: rgba(31,111,235,.2); color: #58a6ff; }
+
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 30px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.upload-zone.drag {
+  border-color: var(--blue);
+}
+
+.progress {
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.progress div {
+  height: 100%;
+  width: 0%;
+  background: var(--green);
+  transition: width .3s;
+}
+
 pre {
-  background: #020617;
+  background: #010409;
   padding: 12px;
-  border-radius: 12px;
-  max-height: 300px;
+  border-radius: 6px;
   overflow: auto;
-  font-size: .75rem;
+  max-height: 300px;
+  font-size: .8rem;
 }
 </style>
 </head>
 
 <body>
-<div class="card">
-  <h2>Admin Planning</h2>
+<div class="container">
+  <h1>⚙️ Planning – Administration</h1>
 
-  <input type="password" id="token" placeholder="Admin token">
-  <input type="file" id="file" accept=".xlsx">
+  <!-- TOKEN -->
+  <div class="card">
+    <h2>🔐 Vérification token GitHub</h2>
+    <button onclick="checkToken()">Vérifier le token</button>
+    <div id="tokenStatus"></div>
+  </div>
 
-  <button class="secondary" onclick="checkGithub()">🔌 Vérifier GitHub</button>
-  <button class="secondary" onclick="preview()">👀 Aperçu JSON</button>
-  <button id="publish" onclick="publish()" disabled>🚀 Publier</button>
+  <!-- CONNEXION -->
+  <div class="card">
+    <h2>🔗 Connexion au dépôt</h2>
+    <button onclick="checkRepo()">Vérifier la connexion</button>
+    <div id="repoStatus"></div>
+  </div>
 
-  <p id="status"></p>
-  <pre id="output" hidden></pre>
+  <!-- UPLOAD -->
+  <div class="card">
+    <h2>📤 Upload du fichier Excel</h2>
+
+    <div class="upload-zone" id="dropZone">
+      Glisse le fichier Excel ici ou clique pour sélectionner
+      <input type="file" id="fileInput" hidden accept=".xlsx,.xls"/>
+    </div>
+
+    <div class="progress"><div id="progressBar"></div></div>
+    <div id="uploadStatus"></div>
+  </div>
+
+  <!-- JSON -->
+  <div class="card">
+    <h2>📄 JSON qui va être push</h2>
+    <pre id="jsonPreview">Aucun fichier traité</pre>
+  </div>
 </div>
 
 <script>
-const status = document.getElementById("status");
-const output = document.getElementById("output");
-const publishBtn = document.getElementById("publish");
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const progressBar = document.getElementById('progressBar');
 
-function fd() {
-  const f = new FormData();
-  f.append("token", token.value);
-  f.append("file", file.files[0]);
-  return f;
+dropZone.onclick = () => fileInput.click();
+
+dropZone.ondragover = e => {
+  e.preventDefault();
+  dropZone.classList.add('drag');
+};
+
+dropZone.ondragleave = () => dropZone.classList.remove('drag');
+
+dropZone.ondrop = e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag');
+  handleFile(e.dataTransfer.files[0]);
+};
+
+fileInput.onchange = e => handleFile(e.target.files[0]);
+
+function alertBox(target, msg, type) {
+  target.innerHTML = `<div class="alert ${type}">${msg}</div>`;
 }
 
-async function checkGithub() {
-  const r = await fetch("/check-github");
-  const d = await r.json();
-  status.textContent = d.message;
+async function checkToken() {
+  const target = document.getElementById('tokenStatus');
+  alertBox(target, "Vérification du token…", "info");
+
+  const res = await fetch('/health/github');
+  const data = await res.json();
+
+  if (data.status === 'ok') {
+    alertBox(target, "Token GitHub valide ✔️", "success");
+  } else {
+    alertBox(target, data.error || "Token invalide ❌", "error");
+  }
 }
 
-async function preview() {
-  const r = await fetch("/preview", { method: "POST", body: fd() });
-  const d = await r.json();
-  output.hidden = false;
-  output.textContent = JSON.stringify(d, null, 2);
-  publishBtn.disabled = false;
+async function checkRepo() {
+  const target = document.getElementById('repoStatus');
+  alertBox(target, "Connexion au dépôt en cours…", "info");
+
+  const res = await fetch('/health/github');
+  const data = await res.json();
+
+  if (data.status === 'ok') {
+    alertBox(target, "Connexion au dépôt réussie ✔️", "success");
+  } else {
+    alertBox(target, data.error || "Erreur dépôt ❌", "error");
+  }
 }
 
-async function publish() {
-  const r = await fetch("/publish", { method: "POST", body: fd() });
-  const d = await r.json();
-  status.textContent = "✅ Publication réussie";
-  publishBtn.disabled = true;
+async function handleFile(file) {
+  if (!file) return;
+
+  progressBar.style.width = '0%';
+  alertBox(uploadStatus, "Upload en cours…", "info");
+
+  const form = new FormData();
+  form.append('file', file);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "/upload");
+
+  xhr.upload.onprogress = e => {
+    if (e.lengthComputable) {
+      progressBar.style.width = (e.loaded / e.total * 100) + '%';
+    }
+  };
+
+  xhr.onload = () => {
+    const res = JSON.parse(xhr.responseText);
+    if (xhr.status === 200) {
+      alertBox(uploadStatus, "Fichier traité et push GitHub ✔️", "success");
+      document.getElementById('jsonPreview').textContent =
+        JSON.stringify(res.json, null, 2);
+    } else {
+      alertBox(uploadStatus, res.error || "Erreur upload ❌", "error");
+    }
+  };
+
+  xhr.send(form);
 }
 </script>
 </body>
