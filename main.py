@@ -1,63 +1,65 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
 import os
-
+from fastapi import FastAPI, UploadFile, File, Header, HTTPException
+from fastapi.responses import JSONResponse
 from excel_parser import excel_to_json
-from github_client import (
-    check_github_connection,
-    commit_json
-)
+from github_client import check_github_connection, commit_json
 
 app = FastAPI()
 
+# ----------------------------------------------------
+# ENV
+# ----------------------------------------------------
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN")
+if not ADMIN_TOKEN:
+    raise Exception("⚠️ ADMIN_TOKEN non défini dans le .env")
 
-@app.get("/", response_class=HTMLResponse)
-def admin_page():
-    with open("templates/admin.html", encoding="utf-8") as f:
-        return f.read()
+
+# ----------------------------------------------------
+# UTIL
+# ----------------------------------------------------
+def check_admin(x_admin_token: str = Header(None)):
+    if not x_admin_token or x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="Admin token invalide")
 
 
-@app.get("/check-github")
-def check_github():
+# ----------------------------------------------------
+# ENDPOINTS
+# ----------------------------------------------------
+
+@app.get("/health/github")
+def health_github(x_admin_token: str = Header(None)):
+    check_admin(x_admin_token)
     ok, message = check_github_connection()
-    return {"ok": ok, "message": message}
+    if ok:
+        return {"status": "ok", "message": message}
+    else:
+        return {"status": "error", "error": message}
 
 
-@app.post("/preview")
-async def preview_excel(
+@app.post("/upload")
+async def upload_excel(
     file: UploadFile = File(...),
-    token: str = Form(...)
+    x_admin_token: str = Header(None)
 ):
-    if token != os.getenv("ADMIN_TOKEN"):
-        raise HTTPException(status_code=401, detail="Token admin invalide")
+    check_admin(x_admin_token)
 
-    if not file.filename.endswith(".xlsx"):
-        raise HTTPException(status_code=400, detail="Fichier .xlsx requis")
+    if not file.filename.endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="Fichier Excel requis")
 
     file_bytes = await file.read()
     data = excel_to_json(file_bytes)
-    return JSONResponse(content=data)
+    return JSONResponse(content={"status": "ok", "json": data})
 
 
-@app.post("/publish")
-async def publish_excel(
-    file: UploadFile = File(...),
-    token: str = Form(...)
+@app.post("/push")
+async def push_json(
+    json_data: dict,
+    x_admin_token: str = Header(None)
 ):
-    if token != os.getenv("ADMIN_TOKEN"):
-        raise HTTPException(status_code=401, detail="Token admin invalide")
+    check_admin(x_admin_token)
 
-    if not file.filename.endswith(".xlsx"):
-        raise HTTPException(status_code=400, detail="Fichier .xlsx requis")
-
-    file_bytes = await file.read()
-    data = excel_to_json(file_bytes)
-
-    commit_json(data)
-
-    return {
-        "status": "ok",
-        "annee": data.get("annee"),
-        "semaine": data.get("semaine"),
-        "agents": len(data.get("agents", []))
-    }
+    try:
+        commit_json(json_data)
+        return {"status": "ok", "message": "JSON pushé sur GitHub ✔️"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
