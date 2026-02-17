@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Admin – Upload planning</title>
+</head>
+<body>
+<h2>Upload planning Excel</h2>
+
+<form id="form">
+  <input type="password" name="token" placeholder="Admin token" required><br><br>
+  <input type="file" name="file" accept=".xlsx" required><br><br>
+  <button>Générer & publier</button>
+</form>
+
+<pre id="result"></pre>
+
+<script>
+document.getElementById("form").onsubmit = async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+
+  const res = await fetch("/upload", {
+    method: "POST",
+    body: formData
+  });
+
+  document.getElementById("result").textContent =
+    JSON.stringify(await res.json(), null, 2);
+};
+</script>
+</body>
+</html>
