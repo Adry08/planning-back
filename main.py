@@ -1,7 +1,6 @@
 import os
 from fastapi import FastAPI, UploadFile, File, Header, HTTPException
 from fastapi.responses import JSONResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
 from excel_parser import excel_to_json
 from github_client import check_github_connection, commit_json
 
@@ -12,7 +11,7 @@ app = FastAPI()
 # ----------------------------------------------------
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN")
 if not ADMIN_TOKEN:
-    raise Exception("⚠️ ADMIN_TOKEN non défini dans le .env")
+    raise Exception("⚠️ ADMIN_TOKEN non défini dans les variables Render")
 
 # ----------------------------------------------------
 # UTIL
@@ -22,25 +21,21 @@ def check_admin(x_admin_token: str = Header(None)):
         raise HTTPException(status_code=401, detail="Admin token invalide")
 
 # ----------------------------------------------------
-# FRONT (serveur HTML)
+# PAGE PRINCIPALE (ADMIN DIRECT)
 # ----------------------------------------------------
-# Monter le dossier templates/static si tu as des CSS/JS
-app.mount("/static", StaticFiles(directory="templates"), name="static")
-
-@app.get("/admin")
-def get_admin():
-    """Renvoie le front admin.html"""
+@app.get("/")
+def home():
     return FileResponse("templates/admin.html")
 
 # ----------------------------------------------------
-# ROUTE RACINE
+# ROUTE ADMIN (optionnel)
 # ----------------------------------------------------
-@app.get("/")
-def root():
-    return {"message": "Backend OK. Utilisez /admin, /health/github, /upload ou /push"}
+@app.get("/admin")
+def get_admin():
+    return FileResponse("templates/admin.html")
 
 # ----------------------------------------------------
-# ENDPOINTS
+# ENDPOINTS API
 # ----------------------------------------------------
 @app.get("/health/github")
 def health_github(x_admin_token: str = Header(None)):
