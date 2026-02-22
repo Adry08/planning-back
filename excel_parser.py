@@ -1,6 +1,7 @@
 import pandas as pd
 import re
 from io import BytesIO
+import hashlib
 
 def excel_col_to_index(col):
     col = col.upper()
@@ -44,6 +45,9 @@ def configurer_colonnes():
     }
     return {jour:[excel_col_to_index(c) for c in lettres] for jour, lettres in colonnes_excel.items()}
 
+def hash_ccms(ccms: str) -> str:
+    return hashlib.sha256(ccms.encode()).hexdigest()
+
 def extraire_planning_tous(df, colonnes):
     agents=[]
     for idx in range(6, len(df)):
@@ -52,19 +56,15 @@ def extraire_planning_tous(df, colonnes):
         if pd.isna(ccms_val):
             continue
         ccms=str(ccms_val).replace('.0','').strip()
-        nom=str(row.iloc[8]).strip() if not pd.isna(row.iloc[8]) else ''
-        n1=str(row.iloc[9]).strip() if not pd.isna(row.iloc[9]) else ''
-        n2=str(row.iloc[10]).strip() if not pd.isna(row.iloc[10]) else ''
-        commentaire=str(row.iloc[17]).strip() if not pd.isna(row.iloc[17]) else ''
         planning_agent={}
         for jour, cols in colonnes.items():
             heures=[]
             for col in cols:
-                if col<len(row):
+                if col < len(row):
                     h=formater_heure(row.iloc[col])
                     if h: heures.append(h)
-            planning_agent[jour]={"debut":heures[0] if heures else None,"fin":heures[-1] if heures else None}
-        agents.append({"ccms":ccms,"nom":nom,"n1":n1,"n2":n2,"commentaire":commentaire,"planning":planning_agent})
+            planning_agent[jour] = {"debut": heures[0] if heures else None, "fin": heures[-1] if heures else None}
+        agents.append({hash_ccms(ccms): planning_agent})
     return agents
 
 def excel_to_json(file_bytes: bytes):
@@ -72,4 +72,4 @@ def excel_to_json(file_bytes: bytes):
     annee, semaine = extraire_semaine(df)
     colonnes = configurer_colonnes()
     agents = extraire_planning_tous(df, colonnes)
-    return {"annee":annee,"semaine":semaine,"agents":agents}
+    return {"annee": annee, "semaine": semaine, "agents": agents}
